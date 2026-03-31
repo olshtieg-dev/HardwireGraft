@@ -1,2 +1,28 @@
-# HardwireGraft
-A 50kb C# utility that binds specific layouts to physical keyboards on Windows. Map Dvorak, Russian, or QWERTY boards by unique Hardware ID without global interference. A surgical, zero-bloat fix for a task that takes 5 lines of Bash on Linux but a whole codebase here. Pure utility for the multi-board polyglot.
+# Physical-KB-LayoutSwitcher
+
+A fresh rewrite of the old multi-keyboard layout switcher idea for modern Windows.
+
+## Goal
+
+Use raw keyboard device input to identify which physical keyboard generated the latest key press, then switch the active keyboard layout to that keyboard's assigned layout.
+
+## Why A Rewrite
+
+The older codebase can detect physical keyboards and save mappings, but its layout-switching behavior relies on Win32 patterns that no longer behave reliably on current Windows versions.
+
+## Current Status
+
+- Modern .NET WinForms tray app scaffolded
+- JSON config persistence added
+- Raw input listener working with per-device debug logging
+- First-pass device-to-layout mapping flow added
+- Layout switching service wired to mapped keyboard activity
+- Auto-start enabled through the current user's Windows sign-in registry key
+
+## Planned Pieces
+
+- Raw input keyboard device listener
+- Device-to-layout assignment UI
+- Safe layout switch service for modern Windows
+- Debug logging for device IDs and switch events
+- Auto-start and reconnect handling
