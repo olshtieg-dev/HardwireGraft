@@ -1,6 +1,6 @@
 # Physical-KB-LayoutSwitcher
 
-A fresh rewrite of the old multi-keyboard layout switcher idea for modern Windows.
+The only existing layout manager that achieved my goal was incompatible with windows 10 and fixing was making it worse so I did a mostly full rewrite taking in it's method. there were no other KBMs that would take a multitude of keyboards and make each one have it's own layout, I needed a seperate layout for Dvorak, Russian & Qwerty on the 3 keyboards I have on my desk so I built this tool to handle that.
 
 ## Goal
 
