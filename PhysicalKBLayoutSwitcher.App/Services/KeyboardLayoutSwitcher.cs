@@ -20,7 +20,7 @@ public sealed class KeyboardLayoutSwitcher
 
         var keyboardLayoutHandle = RawInputApi.LoadKeyboardLayout(
             normalizedLayoutId,
-            RawInputApi.KLF_ACTIVATE | RawInputApi.KLF_SUBSTITUTE_OK);
+            RawInputApi.KLF_ACTIVATE | RawInputApi.KLF_REPLACELANG);
 
         if (keyboardLayoutHandle == IntPtr.Zero)
         {

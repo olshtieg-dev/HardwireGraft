@@ -76,6 +76,15 @@ public sealed class KeyboardLayoutCatalog
 
     private static IEnumerable<string> GetCandidateLayoutIds()
     {
+        using var keyboardLayoutsKey = Registry.LocalMachine.OpenSubKey(KeyboardLayoutsRegistryPath);
+        if (keyboardLayoutsKey is not null)
+        {
+            foreach (var layoutId in keyboardLayoutsKey.GetSubKeyNames())
+            {
+                yield return layoutId;
+            }
+        }
+
         foreach (var loadedLayoutId in RawInputApi.GetKeyboardLayoutHandles().Select(RawInputApi.GetKeyboardLayoutId))
         {
             yield return loadedLayoutId;

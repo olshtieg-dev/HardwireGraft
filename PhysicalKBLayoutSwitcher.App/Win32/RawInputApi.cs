@@ -21,6 +21,7 @@ internal static class RawInputApi
     public const int GIDC_REMOVAL = 2;
     public const uint KLF_ACTIVATE = 0x00000001;
     public const uint KLF_SUBSTITUTE_OK = 0x00000002;
+    public const uint KLF_REPLACELANG = 0x00000010;
     public const uint INPUTLANGCHANGE_SYSCHARSET = 0x0001;
 
     [StructLayout(LayoutKind.Sequential)]
@@ -116,8 +117,8 @@ internal static class RawInputApi
     [DllImport("user32.dll", SetLastError = true, EntryPoint = "LoadKeyboardLayoutW", CharSet = CharSet.Unicode)]
     private static extern IntPtr LoadKeyboardLayoutNative(string keyboardLayoutId, uint flags);
 
-    [DllImport("user32.dll", EntryPoint = "GetForegroundWindow")]
-    private static extern IntPtr GetForegroundWindowNative();
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetForegroundWindow();
 
     [DllImport("user32.dll", SetLastError = true, EntryPoint = "PostMessageW")]
     private static extern bool PostMessageNative(IntPtr windowHandle, uint message, IntPtr wParam, IntPtr lParam);
@@ -296,11 +297,6 @@ internal static class RawInputApi
     public static IntPtr ActivateKeyboardLayout(IntPtr keyboardLayoutHandle, uint flags)
     {
         return ActivateKeyboardLayoutNative(keyboardLayoutHandle, flags);
-    }
-
-    public static IntPtr GetForegroundWindow()
-    {
-        return GetForegroundWindowNative();
     }
 
     public static bool PostMessage(IntPtr windowHandle, uint message, IntPtr wParam, IntPtr lParam)

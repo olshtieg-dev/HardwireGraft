@@ -17,6 +17,8 @@ public sealed class MainForm : Form
     private readonly NotifyIcon notifyIcon;
     private readonly ContextMenuStrip trayMenu;
     private readonly ToolStripMenuItem statusMenuItem;
+    private readonly ToolStripMenuItem controlCenterMenuItem;
+    private readonly ToolStripMenuItem refreshDevicesMenuItem;
     private readonly ToolStripMenuItem debugMonitorMenuItem;
     private readonly ToolStripMenuItem autoStartMenuItem;
     private readonly ToolStripMenuItem manageMappingsMenuItem;
@@ -24,6 +26,7 @@ public sealed class MainForm : Form
     private readonly ToolStripMenuItem exitMenuItem;
 
     private AppConfiguration configuration;
+    private ControlCenterForm? controlCenterForm;
     private DebugMonitorForm? debugMonitorForm;
     private DeviceMappingsForm? deviceMappingsForm;
 
@@ -41,6 +44,8 @@ public sealed class MainForm : Form
         Opacity = 0;
 
         statusMenuItem = new ToolStripMenuItem();
+        controlCenterMenuItem = new ToolStripMenuItem("Open Control Center");
+        refreshDevicesMenuItem = new ToolStripMenuItem("Refresh Devices");
         debugMonitorMenuItem = new ToolStripMenuItem("Open Debug Monitor");
         autoStartMenuItem = new ToolStripMenuItem("Launch at Windows Sign-In");
         manageMappingsMenuItem = new ToolStripMenuItem("Manage Layout Mappings");
@@ -48,7 +53,7 @@ public sealed class MainForm : Form
         exitMenuItem = new ToolStripMenuItem("Exit");
 
         trayMenu = new ContextMenuStrip();
-        trayMenu.Items.AddRange([statusMenuItem, debugMonitorMenuItem, autoStartMenuItem, manageMappingsMenuItem, configPathMenuItem, exitMenuItem]);
+        trayMenu.Items.AddRange([statusMenuItem, controlCenterMenuItem, refreshDevicesMenuItem, debugMonitorMenuItem, autoStartMenuItem, manageMappingsMenuItem, configPathMenuItem, exitMenuItem]);
 
         notifyIcon = new NotifyIcon
         {
@@ -58,6 +63,9 @@ public sealed class MainForm : Form
             ContextMenuStrip = trayMenu,
         };
 
+        notifyIcon.DoubleClick += NotifyIcon_DoubleClick;
+        controlCenterMenuItem.Click += ControlCenterMenuItem_Click;
+        refreshDevicesMenuItem.Click += RefreshDevicesMenuItem_Click;
         debugMonitorMenuItem.Click += DebugMonitorMenuItem_Click;
         autoStartMenuItem.Click += AutoStartMenuItem_Click;
         manageMappingsMenuItem.Click += ManageMappingsMenuItem_Click;
@@ -78,6 +86,7 @@ public sealed class MainForm : Form
     {
         base.OnLoad(e);
         Hide();
+        BeginInvoke((Action)OpenControlCenter);
     }
 
     protected override void WndProc(ref Message m)
@@ -94,12 +103,18 @@ public sealed class MainForm : Form
     {
         if (disposing)
         {
+            controlCenterForm?.Dispose();
             debugMonitorForm?.Dispose();
             notifyIcon.Dispose();
             trayMenu.Dispose();
         }
 
         base.Dispose(disposing);
+    }
+
+    private void ControlCenterMenuItem_Click(object? sender, EventArgs e)
+    {
+        OpenControlCenter();
     }
 
     private void DebugMonitorMenuItem_Click(object? sender, EventArgs e)
@@ -113,6 +128,11 @@ public sealed class MainForm : Form
 
         debugMonitorForm.Show();
         debugMonitorForm.BringToFront();
+    }
+
+    private void NotifyIcon_DoubleClick(object? sender, EventArgs e)
+    {
+        OpenControlCenter();
     }
 
     private void ConfigPathMenuItem_Click(object? sender, EventArgs e)
@@ -132,12 +152,18 @@ public sealed class MainForm : Form
 
     private void ExitMenuItem_Click(object? sender, EventArgs e)
     {
+        controlCenterForm?.Hide();
         Close();
     }
 
     private void ManageMappingsMenuItem_Click(object? sender, EventArgs e)
     {
         OpenMappingsDialog();
+    }
+
+    private void RefreshDevicesMenuItem_Click(object? sender, EventArgs e)
+    {
+        RefreshDevices();
     }
 
     private void AutoStartMenuItem_Click(object? sender, EventArgs e)
@@ -151,6 +177,7 @@ public sealed class MainForm : Form
             configurationStore.Save(configuration);
             AppLog.Info($"Auto-start {(shouldEnable ? "enabled" : "disabled")}.");
             UpdateAutoStartMenuState();
+            UpdateControlCenterState();
         }
         catch (Exception exception)
         {
@@ -167,6 +194,7 @@ public sealed class MainForm : Form
     {
         debugMonitorForm?.SetDevices(keyboardListener.KnownDevices);
         UpdateStatusText();
+        UpdateControlCenterState();
     }
 
     private void KeyboardListener_KeyboardInputReceived(object? sender, KeyboardInputEvent inputEvent)
@@ -175,6 +203,7 @@ public sealed class MainForm : Form
         debugMonitorForm?.AddEvent(inputEvent);
         deviceMappingsForm?.NoteKeyboardActivity(inputEvent.DeviceName);
         UpdateStatusText();
+        UpdateControlCenterState();
 
         if (!inputEvent.IsKeyDown)
         {
@@ -220,6 +249,103 @@ public sealed class MainForm : Form
         manageMappingsMenuItem.Text = unmappedCount > 0
             ? $"Manage Layout Mappings ({unmappedCount} unmapped)"
             : "Manage Layout Mappings";
+    }
+
+    private void OpenControlCenter()
+    {
+        if (controlCenterForm is not null && !controlCenterForm.IsDisposed)
+        {
+            controlCenterForm.Show();
+            controlCenterForm.WindowState = FormWindowState.Normal;
+            controlCenterForm.BringToFront();
+            controlCenterForm.Activate();
+            return;
+        }
+
+        try
+        {
+            AppLog.Info("Opening control center.");
+            controlCenterForm = new ControlCenterForm(
+                keyboardLayoutCatalog.GetAvailableLayouts(),
+                RefreshDevices,
+                OpenMappings,
+                OpenDebugMonitor,
+                ToggleAutoStart,
+                OpenConfigFolder,
+                ExitApplication);
+            controlCenterForm.FormClosed += ControlCenterForm_FormClosed;
+            controlCenterForm.SetState(configuration, keyboardListener.KnownDevices, unmappedActiveDevices.Count, configurationStore.ConfigFilePath);
+            controlCenterForm.Show();
+            controlCenterForm.BringToFront();
+            controlCenterForm.Activate();
+        }
+        catch (Exception exception)
+        {
+            AppLog.Error("Control center failed.", exception);
+            MessageBox.Show(
+                $"The control center hit an error. A log was written to:{Environment.NewLine}{AppLog.LogPath}",
+                AppTitle,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+    }
+
+    private void RefreshDevices()
+    {
+        try
+        {
+            keyboardListener.RefreshDevices();
+            UpdateStatusText();
+            UpdateControlCenterState();
+        }
+        catch (Exception exception)
+        {
+            AppLog.Error("Device refresh failed.", exception);
+            MessageBox.Show(
+                $"The device refresh hit an error. A log was written to:{Environment.NewLine}{AppLog.LogPath}",
+                AppTitle,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+    }
+
+    private void ToggleAutoStart()
+    {
+        AutoStartMenuItem_Click(this, EventArgs.Empty);
+    }
+
+    private void OpenDebugMonitor()
+    {
+        DebugMonitorMenuItem_Click(this, EventArgs.Empty);
+    }
+
+    private void OpenMappings()
+    {
+        OpenMappingsDialog();
+    }
+
+    private void OpenConfigFolder()
+    {
+        ConfigPathMenuItem_Click(this, EventArgs.Empty);
+    }
+
+    private void ExitApplication()
+    {
+        ExitMenuItem_Click(this, EventArgs.Empty);
+    }
+
+    private void UpdateControlCenterState()
+    {
+        if (controlCenterForm is null || controlCenterForm.IsDisposed)
+        {
+            return;
+        }
+
+        controlCenterForm.SetState(
+            configuration,
+            keyboardListener.KnownDevices,
+            unmappedActiveDevices.Count,
+            configurationStore.ConfigFilePath);
     }
 
     private void OpenMappingsDialog(string? deviceIdToSelect = null)
@@ -340,5 +466,16 @@ public sealed class MainForm : Form
         unmappedActiveDevices.RemoveWhere(deviceId =>
             !string.IsNullOrWhiteSpace(configuration.GetLayoutForDevice(deviceId)));
         UpdateStatusText();
+        UpdateControlCenterState();
+    }
+
+    private void ControlCenterForm_FormClosed(object? sender, FormClosedEventArgs e)
+    {
+        if (controlCenterForm is not null)
+        {
+            controlCenterForm.FormClosed -= ControlCenterForm_FormClosed;
+        }
+
+        controlCenterForm = null;
     }
 }
