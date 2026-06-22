@@ -10,6 +10,9 @@ public sealed class AppConfiguration
     [JsonPropertyName("autoStartEnabled")]
     public bool AutoStartEnabled { get; set; }
 
+    [JsonPropertyName("switchingPaused")]
+    public bool SwitchingPaused { get; set; }
+
     [JsonPropertyName("deviceMappings")]
     public List<DeviceLayoutMapping> DeviceMappings { get; set; } = [];
 
@@ -19,6 +22,7 @@ public sealed class AppConfiguration
         {
             AutoStartPreferenceInitialized = AutoStartPreferenceInitialized,
             AutoStartEnabled = AutoStartEnabled,
+            SwitchingPaused = SwitchingPaused,
             DeviceMappings = DeviceMappings
                 .Select(mapping => new DeviceLayoutMapping
                 {

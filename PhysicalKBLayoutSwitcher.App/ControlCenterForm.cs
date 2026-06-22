@@ -9,6 +9,7 @@ public sealed class ControlCenterForm : Form
     private readonly Action refreshDevicesAction;
     private readonly Action openMappingsAction;
     private readonly Action openDebugMonitorAction;
+    private readonly Action toggleSwitchingPausedAction;
     private readonly Action toggleAutoStartAction;
     private readonly Action openConfigFolderAction;
     private readonly Action exitAction;
@@ -20,6 +21,7 @@ public sealed class ControlCenterForm : Form
     private readonly Button refreshButton;
     private readonly Button manageMappingsButton;
     private readonly Button debugMonitorButton;
+    private readonly Button pauseSwitchingButton;
     private readonly Button autoStartButton;
     private readonly Button openConfigButton;
     private readonly Button exitButton;
@@ -34,6 +36,7 @@ public sealed class ControlCenterForm : Form
         Action refreshDevicesAction,
         Action openMappingsAction,
         Action openDebugMonitorAction,
+        Action toggleSwitchingPausedAction,
         Action toggleAutoStartAction,
         Action openConfigFolderAction,
         Action exitAction)
@@ -42,6 +45,7 @@ public sealed class ControlCenterForm : Form
         this.refreshDevicesAction = refreshDevicesAction;
         this.openMappingsAction = openMappingsAction;
         this.openDebugMonitorAction = openDebugMonitorAction;
+        this.toggleSwitchingPausedAction = toggleSwitchingPausedAction;
         this.toggleAutoStartAction = toggleAutoStartAction;
         this.openConfigFolderAction = openConfigFolderAction;
         this.exitAction = exitAction;
@@ -121,6 +125,13 @@ public sealed class ControlCenterForm : Form
         };
         debugMonitorButton.Click += (_, _) => openDebugMonitorAction();
 
+        pauseSwitchingButton = new Button
+        {
+            AutoSize = true,
+            Text = "Pause Switching",
+        };
+        pauseSwitchingButton.Click += (_, _) => toggleSwitchingPausedAction();
+
         autoStartButton = new Button
         {
             AutoSize = true,
@@ -153,6 +164,7 @@ public sealed class ControlCenterForm : Form
         buttonStrip.Controls.Add(refreshButton);
         buttonStrip.Controls.Add(manageMappingsButton);
         buttonStrip.Controls.Add(debugMonitorButton);
+        buttonStrip.Controls.Add(pauseSwitchingButton);
         buttonStrip.Controls.Add(autoStartButton);
         buttonStrip.Controls.Add(openConfigButton);
         buttonStrip.Controls.Add(exitButton);
@@ -218,11 +230,14 @@ public sealed class ControlCenterForm : Form
         this.configPath = configPath;
 
         summaryValueLabel.Text =
-            $"Connected: {currentDevices.Count(device => device.IsConnected)} | Known: {currentDevices.Count} | Saved mappings: {currentConfiguration.DeviceMappings.Count} | Unmapped active: {this.unmappedActiveCount}";
+            $"{(currentConfiguration.SwitchingPaused ? "Paused" : "Active")} | Connected: {currentDevices.Count(device => device.IsConnected)} | Known: {currentDevices.Count} | Saved mappings: {currentConfiguration.DeviceMappings.Count} | Unmapped active: {this.unmappedActiveCount}";
         autoStartValueLabel.Text = currentConfiguration.AutoStartEnabled
             ? "Enabled"
             : "Disabled";
         configPathValueLabel.Text = configPath;
+        pauseSwitchingButton.Text = currentConfiguration.SwitchingPaused
+            ? "Resume Switching"
+            : "Pause Switching";
         autoStartButton.Text = currentConfiguration.AutoStartEnabled
             ? "Disable Auto-Start"
             : "Enable Auto-Start";

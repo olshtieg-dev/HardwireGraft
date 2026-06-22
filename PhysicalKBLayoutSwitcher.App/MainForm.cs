@@ -9,6 +9,7 @@ public sealed class MainForm : Form
     private const string AppTitle = "Physical KB Layout Switcher";
 
     private readonly AutoStartService autoStartService = new();
+    private readonly ShortcutService shortcutService = new();
     private readonly ConfigurationStore configurationStore = new();
     private readonly RawKeyboardListener keyboardListener = new();
     private readonly KeyboardLayoutCatalog keyboardLayoutCatalog = new();
@@ -18,6 +19,7 @@ public sealed class MainForm : Form
     private readonly ContextMenuStrip trayMenu;
     private readonly ToolStripMenuItem statusMenuItem;
     private readonly ToolStripMenuItem controlCenterMenuItem;
+    private readonly ToolStripMenuItem pauseSwitchingMenuItem;
     private readonly ToolStripMenuItem refreshDevicesMenuItem;
     private readonly ToolStripMenuItem debugMonitorMenuItem;
     private readonly ToolStripMenuItem autoStartMenuItem;
@@ -34,6 +36,7 @@ public sealed class MainForm : Form
     {
         configuration = configurationStore.Load();
         RemoveNoiseMappings();
+        EnsureLaunchShortcuts();
         EnsureAutoStartEnabled();
         keyboardListener.KeyboardInputReceived += KeyboardListener_KeyboardInputReceived;
         keyboardListener.DevicesChanged += KeyboardListener_DevicesChanged;
@@ -45,6 +48,7 @@ public sealed class MainForm : Form
 
         statusMenuItem = new ToolStripMenuItem();
         controlCenterMenuItem = new ToolStripMenuItem("Open Control Center");
+        pauseSwitchingMenuItem = new ToolStripMenuItem("Pause Layout Switching");
         refreshDevicesMenuItem = new ToolStripMenuItem("Refresh Devices");
         debugMonitorMenuItem = new ToolStripMenuItem("Open Debug Monitor");
         autoStartMenuItem = new ToolStripMenuItem("Launch at Windows Sign-In");
@@ -53,7 +57,7 @@ public sealed class MainForm : Form
         exitMenuItem = new ToolStripMenuItem("Exit");
 
         trayMenu = new ContextMenuStrip();
-        trayMenu.Items.AddRange([statusMenuItem, controlCenterMenuItem, refreshDevicesMenuItem, debugMonitorMenuItem, autoStartMenuItem, manageMappingsMenuItem, configPathMenuItem, exitMenuItem]);
+        trayMenu.Items.AddRange([statusMenuItem, controlCenterMenuItem, pauseSwitchingMenuItem, refreshDevicesMenuItem, debugMonitorMenuItem, autoStartMenuItem, manageMappingsMenuItem, configPathMenuItem, exitMenuItem]);
 
         notifyIcon = new NotifyIcon
         {
@@ -65,6 +69,7 @@ public sealed class MainForm : Form
 
         notifyIcon.DoubleClick += NotifyIcon_DoubleClick;
         controlCenterMenuItem.Click += ControlCenterMenuItem_Click;
+        pauseSwitchingMenuItem.Click += PauseSwitchingMenuItem_Click;
         refreshDevicesMenuItem.Click += RefreshDevicesMenuItem_Click;
         debugMonitorMenuItem.Click += DebugMonitorMenuItem_Click;
         autoStartMenuItem.Click += AutoStartMenuItem_Click;
@@ -73,6 +78,7 @@ public sealed class MainForm : Form
         exitMenuItem.Click += ExitMenuItem_Click;
 
         UpdateAutoStartMenuState();
+        UpdatePauseSwitchingMenuState();
         UpdateStatusText();
     }
 
@@ -166,6 +172,11 @@ public sealed class MainForm : Form
         RefreshDevices();
     }
 
+    private void PauseSwitchingMenuItem_Click(object? sender, EventArgs e)
+    {
+        ToggleSwitchingPaused();
+    }
+
     private void AutoStartMenuItem_Click(object? sender, EventArgs e)
     {
         var shouldEnable = !configuration.AutoStartEnabled;
@@ -210,6 +221,11 @@ public sealed class MainForm : Form
             return;
         }
 
+        if (configuration.SwitchingPaused)
+        {
+            return;
+        }
+
         var deviceId = inputEvent.DeviceName;
         var mappedLayoutId = configuration.GetLayoutForDevice(deviceId);
         if (string.IsNullOrWhiteSpace(mappedLayoutId))
@@ -245,7 +261,7 @@ public sealed class MainForm : Form
         var seenDeviceCount = knownDevices.Count;
         var unmappedCount = unmappedActiveDevices.Count;
         statusMenuItem.Enabled = false;
-        statusMenuItem.Text = $"Connected: {connectedDeviceCount} | Known: {seenDeviceCount} | Saved mappings: {mappingCount} | Unmapped active: {unmappedCount}";
+        statusMenuItem.Text = $"{(configuration.SwitchingPaused ? "Paused" : "Active")} | Connected: {connectedDeviceCount} | Known: {seenDeviceCount} | Saved mappings: {mappingCount} | Unmapped active: {unmappedCount}";
         manageMappingsMenuItem.Text = unmappedCount > 0
             ? $"Manage Layout Mappings ({unmappedCount} unmapped)"
             : "Manage Layout Mappings";
@@ -270,6 +286,7 @@ public sealed class MainForm : Form
                 RefreshDevices,
                 OpenMappings,
                 OpenDebugMonitor,
+                ToggleSwitchingPaused,
                 ToggleAutoStart,
                 OpenConfigFolder,
                 ExitApplication);
@@ -312,6 +329,16 @@ public sealed class MainForm : Form
     private void ToggleAutoStart()
     {
         AutoStartMenuItem_Click(this, EventArgs.Empty);
+    }
+
+    private void ToggleSwitchingPaused()
+    {
+        configuration.SwitchingPaused = !configuration.SwitchingPaused;
+        configurationStore.Save(configuration);
+        AppLog.Info($"Layout switching {(configuration.SwitchingPaused ? "paused" : "resumed")}.");
+        UpdatePauseSwitchingMenuState();
+        UpdateStatusText();
+        UpdateControlCenterState();
     }
 
     private void OpenDebugMonitor()
@@ -442,9 +469,33 @@ public sealed class MainForm : Form
         }
     }
 
+    private void EnsureLaunchShortcuts()
+    {
+        try
+        {
+            shortcutService.EnsureLaunchShortcuts();
+            AppLog.Info("Launch shortcuts checked.");
+        }
+        catch (Exception exception)
+        {
+            AppLog.Error("Failed to create launch shortcuts.", exception);
+        }
+    }
+
     private void UpdateAutoStartMenuState()
     {
         autoStartMenuItem.Checked = configuration.AutoStartEnabled;
+    }
+
+    private void UpdatePauseSwitchingMenuState()
+    {
+        pauseSwitchingMenuItem.Checked = configuration.SwitchingPaused;
+        pauseSwitchingMenuItem.Text = configuration.SwitchingPaused
+            ? "Resume Layout Switching"
+            : "Pause Layout Switching";
+        notifyIcon.Text = configuration.SwitchingPaused
+            ? "Physical KB Layout Switcher (Paused)"
+            : "Physical KB Layout Switcher";
     }
 
     private void DeviceMappingsForm_FormClosed(object? sender, FormClosedEventArgs e)
